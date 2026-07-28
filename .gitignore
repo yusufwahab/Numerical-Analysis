@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+backend/py_modules
 
 # Environment secrets — never commit real .env files
 .env

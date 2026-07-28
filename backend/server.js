@@ -215,8 +215,14 @@ app.post('/api/solve', async (req, res) => {
 
   const scriptPath = path.join(__dirname, 'compute.py')
   const pythonCmd = process.platform === 'win32' ? 'py' : 'python3'
+  const pyModulesPath = path.join(__dirname, 'py_modules')
   console.log(`[solve] spawning ${pythonCmd} with matric=${norm}`)
-  const py = spawn(pythonCmd, [scriptPath, norm])
+  const py = spawn(pythonCmd, [scriptPath, norm], {
+    env: {
+      ...process.env,
+      PYTHONPATH: [pyModulesPath, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+    },
+  })
 
   let stdout = ''
   let stderr = ''

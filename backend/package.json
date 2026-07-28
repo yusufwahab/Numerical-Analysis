@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "postinstall": "python3 -m pip install --break-system-packages -r requirements.txt",
-    "build": "python3 -m pip install --break-system-packages -r requirements.txt"
+    "postinstall": "python3 -m pip install --break-system-packages --target=py_modules -r requirements.txt",
+    "build": "python3 -m pip install --break-system-packages --target=py_modules -r requirements.txt"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",
