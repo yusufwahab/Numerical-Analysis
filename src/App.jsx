@@ -5,6 +5,7 @@ import LandingPage from './components/LandingPage'
 import PaymentGate from './components/PaymentGate'
 import PostPayment from './components/PostPayment'
 import ReturningUser from './components/ReturningUser'
+import ContactButton from './components/ContactButton'
 import { apiFetch } from './lib/api'
 
 function formatFormula(expr) {
@@ -250,44 +251,38 @@ export default function App() {
     setView('notebook')
   }
 
+  let screen = null
+
   if (view === 'landing') {
-    return (
+    screen = (
       <LandingPage
         onGetStarted={() => setView('payment')}
       />
     )
-  }
-
-  if (view === 'payment') {
-    return <PaymentGate
+  } else if (view === 'payment') {
+    screen = <PaymentGate
       onBack={() => setView('landing')}
       onAlreadyPaid={handleFound}
       onReturning={() => setView('returning')}
       onPromoRedeemed={handlePromoRedeemed}
     />
-  }
-
-  if (view === 'post-payment') {
-    return (
+  } else if (view === 'post-payment') {
+    screen = (
       <PostPayment
         reference={reference}
         onComplete={handleRegistered}
       />
     )
-  }
-
-  if (view === 'returning') {
-    return (
+  } else if (view === 'returning') {
+    screen = (
       <ReturningUser
         onFound={handleFound}
         onNotFound={() => setView('payment')}
         onBack={() => setView('landing')}
       />
     )
-  }
-
-  if (view === 'notebook' && user) {
-    return (
+  } else if (view === 'notebook' && user) {
+    screen = (
       <NotebookView
         fullName={user.name}
         matric={user.matric}
@@ -297,5 +292,10 @@ export default function App() {
     )
   }
 
-  return null
+  return (
+    <>
+      {screen}
+      <ContactButton />
+    </>
+  )
 }

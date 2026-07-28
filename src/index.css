@@ -139,6 +139,29 @@ body {
   gap: 1rem;
 }
 
+/* ─── Contact / WhatsApp FAB ─────────────────────────────────────────────── */
+.whatsapp-fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.1rem;
+  background: #25d366;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 10px 24px -8px rgba(0,0,0,0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.whatsapp-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -8px rgba(0,0,0,0.6); }
+.whatsapp-fab svg { width: 20px; height: 20px; flex-shrink: 0; }
+
 /* ─── Landing page (hero only) ───────────────────────────────────────────── */
 .landing { min-height: 100vh; background: var(--surface); }
 
@@ -849,6 +872,8 @@ textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
 
 /* ─── Mobile ─────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
+  .whatsapp-fab { right: 1rem; bottom: 1rem; padding: 0.7rem; }
+  .whatsapp-fab-label { display: none; }
   .landing-nav { padding: 1rem 1.25rem; flex-wrap: wrap; gap: 0.5rem; }
   .nav-contact { font-size: 0.72rem; }
   .hero { padding: 6rem 1.25rem 3.5rem; min-height: 100vh; }
