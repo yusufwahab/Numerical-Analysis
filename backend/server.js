@@ -152,7 +152,7 @@ app.post('/api/pay/init', async (req, res) => {
 
   const { error: pendingErr } = await db().from('users').upsert(
     { email, paystack_ref: data.data.reference, payment_status: 'pending' },
-    { onConflict: 'paystack_ref', ignoreDuplicates: false }
+    { onConflict: 'email', ignoreDuplicates: false }
   )
   if (pendingErr) console.error('[pay/init] pending upsert failed:', pendingErr.message)
 
@@ -196,7 +196,7 @@ app.post('/api/pay/verify', async (req, res) => {
   const email = data.data.customer?.email?.toLowerCase().trim() ?? null
   const { error: confirmErr } = await db().from('users').upsert(
     { email, paystack_ref: reference, payment_status: 'confirmed' },
-    { onConflict: 'paystack_ref' }
+    { onConflict: 'email' }
   )
   if (confirmErr) console.error('[pay/verify] confirmed upsert failed:', confirmErr.message)
   res.json({ ok: true })
@@ -242,12 +242,19 @@ app.post('/api/user/register', async (req, res) => {
     return res.status(409).json({ error: 'This matric number is already registered.' })
   }
 
-  // Upsert the full confirmed record
+  // Upsert the full confirmed record — conflict-target on email, not
+  // paystack_ref: a retried/abandoned payment attempt with the same email
+  // generates a new paystack_ref each time, and since email is also unique,
+  // targeting paystack_ref here would collide with that earlier row instead
+  // of updating it.
   const { error } = await db().from('users').upsert(
     { email, paystack_ref: reference, payment_status: 'confirmed', matric: norm, name: name.trim() },
-    { onConflict: 'paystack_ref' }
+    { onConflict: 'email' }
   )
-  if (error) return res.status(500).json({ error: 'Failed to save your details.' })
+  if (error) {
+    console.error('[user/register] upsert failed:', error.message)
+    return res.status(500).json({ error: 'Failed to save your details.' })
+  }
 
   res.json({ ok: true, matric: norm, email })
 })
@@ -273,6 +280,14 @@ app.post('/api/user/lookup', async (req, res) => {
 
 // ─── Solve ────────────────────────────────────────────────────────────────────
 
+// Each solve spawns a Python process that imports numpy/sympy/matplotlib —
+// memory-heavy just to import. Render's instance only has 512MB, so we cap
+// how many can run at once regardless of how many different people are
+// hitting it (the per-IP rate limiter above doesn't protect against that —
+// it only slows down a single IP over time, not total concurrency).
+let activeSolves = 0
+const MAX_CONCURRENT_SOLVES = 2
+
 app.post('/api/solve', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (req, res) => {
   const { matric } = req.body ?? {}
   const norm = normalizeMatric(matric ?? '')
@@ -281,10 +296,21 @@ app.post('/api/solve', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (
     return res.status(400).json({ error: 'Matriculation number must be exactly 9 digits.' })
   }
 
+  if (activeSolves >= MAX_CONCURRENT_SOLVES) {
+    return res.status(503).json({ error: 'Server is busy right now — please try again in a moment.' })
+  }
+  activeSolves++
+  let finished = false
+  function done() {
+    if (finished) return
+    finished = true
+    activeSolves--
+  }
+
   const scriptPath = path.join(__dirname, 'compute.py')
   const pythonCmd = process.platform === 'win32' ? 'py' : 'python3'
   const pyModulesPath = path.join(__dirname, 'py_modules')
-  console.log(`[solve] spawning ${pythonCmd} with matric=${norm}`)
+  console.log(`[solve] spawning ${pythonCmd} with matric=${norm} (active: ${activeSolves})`)
   const py = spawn(pythonCmd, [scriptPath, norm], {
     env: {
       ...process.env,
@@ -299,11 +325,13 @@ app.post('/api/solve', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (
   py.stderr.on('data', (chunk) => { stderr += chunk })
   py.on('error', (err) => {
     responded = true
+    done()
     console.error(`[solve] spawn error:`, err.message)
     res.status(500).json({ error: 'Failed to start computation engine.', details: err.message })
   })
 
   py.on('close', async (code) => {
+    done()
     if (responded) return
     console.log(`[solve] python exited with code ${code}`)
     if (stderr) console.error(`[solve] stderr:`, stderr)
