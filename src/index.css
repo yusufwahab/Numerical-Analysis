@@ -537,8 +537,6 @@ textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
   margin-top: 1rem;
 }
 
-.discount-form { margin-top: 0.25rem; }
-
 .discount-sent {
   margin-top: 1rem;
   text-align: center;

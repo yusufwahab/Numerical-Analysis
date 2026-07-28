@@ -99,15 +99,16 @@ async function sendDiscountRequestEmail({ requesterEmail, amount, reason }) {
 // ─── Payment: Initialise ──────────────────────────────────────────────────────
 
 app.post('/api/pay/init', async (req, res) => {
-  const { email } = req.body ?? {}
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const { email: rawEmail } = req.body ?? {}
+  if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
     return res.status(400).json({ error: 'A valid email address is required.' })
   }
+  const email = rawEmail.toLowerCase().trim()
 
   // Check if this email already has a confirmed payment
   const { data: existingUser } = await db().from('users')
     .select('matric, name, payment_status')
-    .eq('email', email.toLowerCase().trim())
+    .eq('email', email)
     .single()
 
   if (existingUser?.payment_status === 'confirmed') {
@@ -171,7 +172,7 @@ app.post('/api/pay/verify', async (req, res) => {
 
   // Upsert — handles case where webhook fired before redirect and row already exists,
   // or where pay/init row was never created
-  const email = data.data.customer?.email ?? null
+  const email = data.data.customer?.email?.toLowerCase().trim() ?? null
   await db().from('users').upsert(
     { email, paystack_ref: reference, payment_status: 'confirmed' },
     { onConflict: 'paystack_ref' }
@@ -372,9 +373,16 @@ app.post('/api/promo/redeem', async (req, res) => {
   const reference = `promo:${normCode}`
   const { error: upsertErr } = await db().from('users').upsert(
     { email: normEmail, paystack_ref: reference, payment_status: 'confirmed' },
-    { onConflict: 'paystack_ref' }
+    { onConflict: 'email' }
   )
-  if (upsertErr) return res.status(500).json({ error: 'Failed to activate your access.' })
+  if (upsertErr) {
+    console.error('[promo] users upsert failed, rolling back code claim:', upsertErr.message)
+    // Don't burn the code on a failure the user never actually benefited from.
+    await db().from('promo_codes')
+      .update({ used: false, used_by_email: null, used_at: null })
+      .eq('id', promo.id)
+    return res.status(500).json({ error: 'Failed to activate your access.' })
+  }
 
   res.json({ ok: true, reference })
 })
