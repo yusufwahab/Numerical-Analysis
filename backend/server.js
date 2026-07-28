@@ -258,8 +258,6 @@ app.post('/api/email/confirm', async (req, res) => {
   }
 })
 
-import { execSync } from 'child_process'
-
 app.get('/api/health', (_req, res) => {
   let pyVersion = 'not found'
   try { pyVersion = execSync('python3 --version 2>&1').toString().trim() } catch (e) { pyVersion = e.message }
