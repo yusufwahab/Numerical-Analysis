@@ -37,11 +37,12 @@ export default function LandingPage({ onGetStarted }) {
 
             <div className="hero-actions">
               <button className="btn-hero" onClick={onGetStarted}>
-                Generate My Notebook — ₦1,500
+                Generate My Notebook
               </button>
             </div>
 
             <div className="hero-trust">
+              <span className="trust-item"><strong>✓</strong> Request discount</span>
               <span className="trust-item"><strong>✓</strong> One-time payment</span>
               <span className="trust-item"><strong>✓</strong> Instant access</span>
               <span className="trust-item"><strong>✓</strong> PDF-ready output</span>
