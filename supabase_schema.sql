@@ -45,3 +45,18 @@ create trigger trg_updated_at
 alter table users enable row level security;
 -- No policies = zero access for anon/authenticated roles.
 -- Service role key on the backend bypasses RLS entirely.
+
+-- ─── Promo codes ────────────────────────────────────────────────────────────
+-- One code per user — each row can be redeemed exactly once.
+create table if not exists promo_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  used boolean not null default false,
+  used_by_email text,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table promo_codes enable row level security;
+-- No policies = zero access for anon/authenticated roles.
+-- Service role key on the backend bypasses RLS entirely.

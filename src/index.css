@@ -519,9 +519,12 @@ body {
 .field-input.font-mono { font-family: var(--font-mono); letter-spacing: 0.1em; }
 textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
 
-.discount-toggle {
-  display: block;
-  margin: 1rem auto 0;
+.gate-secondary-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
 }
 
 .discount-form { margin-top: 0.25rem; }

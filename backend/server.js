@@ -192,13 +192,26 @@ app.post('/api/user/register', async (req, res) => {
     return res.status(400).json({ error: 'Matriculation number must be exactly 9 digits.' })
   }
 
-  // Re-verify with Paystack directly — don't rely solely on DB state
-  const verification = await paystackRequest(`/transaction/verify/${reference}`)
-  if (!verification.status || !verification.data || verification.data.status !== 'success') {
-    return res.status(402).json({ error: 'Payment not confirmed for this reference.' })
+  let email
+  if (reference.startsWith('promo:')) {
+    // Promo access was already confirmed atomically during redemption —
+    // just re-check the record rather than calling Paystack.
+    const { data: promoUser } = await db().from('users')
+      .select('email, payment_status')
+      .eq('paystack_ref', reference)
+      .single()
+    if (!promoUser || promoUser.payment_status !== 'confirmed') {
+      return res.status(402).json({ error: 'Promo access not confirmed for this code.' })
+    }
+    email = promoUser.email
+  } else {
+    // Re-verify with Paystack directly — don't rely solely on DB state
+    const verification = await paystackRequest(`/transaction/verify/${reference}`)
+    if (!verification.status || !verification.data || verification.data.status !== 'success') {
+      return res.status(402).json({ error: 'Payment not confirmed for this reference.' })
+    }
+    email = verification.data.customer?.email?.toLowerCase().trim() ?? null
   }
-
-  const email = verification.data.customer?.email?.toLowerCase().trim() ?? null
 
   // Check matric not already taken by a different reference
   const { data: existing } = await db().from('users').select('paystack_ref').eq('matric', norm).single()
@@ -319,6 +332,51 @@ app.post('/api/discount/request', async (req, res) => {
   } catch {
     res.status(500).json({ error: 'Failed to send your request. Please try again.' })
   }
+})
+
+// ─── Promo codes ──────────────────────────────────────────────────────────────
+// One-time codes that grant access without payment. Each row in promo_codes
+// can be claimed exactly once; the claim itself is a conditional update so two
+// people redeeming the same code at once can't both succeed.
+
+app.post('/api/promo/redeem', async (req, res) => {
+  const { code, email } = req.body ?? {}
+  if (!code || !String(code).trim()) {
+    return res.status(400).json({ error: 'Promo code required.' })
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'A valid email address is required.' })
+  }
+
+  const normCode = String(code).trim().toUpperCase()
+  const normEmail = email.toLowerCase().trim()
+
+  const { data: promo } = await db().from('promo_codes')
+    .select('id, used')
+    .eq('code', normCode)
+    .single()
+
+  if (!promo) return res.status(404).json({ error: 'Invalid promo code.' })
+  if (promo.used) return res.status(409).json({ error: 'This promo code has already been used.' })
+
+  // Only succeeds if the row is still unused at the moment of the update.
+  const { data: claimed } = await db().from('promo_codes')
+    .update({ used: true, used_by_email: normEmail, used_at: new Date().toISOString() })
+    .eq('id', promo.id)
+    .eq('used', false)
+    .select()
+    .single()
+
+  if (!claimed) return res.status(409).json({ error: 'This promo code has already been used.' })
+
+  const reference = `promo:${normCode}`
+  const { error: upsertErr } = await db().from('users').upsert(
+    { email: normEmail, paystack_ref: reference, payment_status: 'confirmed' },
+    { onConflict: 'paystack_ref' }
+  )
+  if (upsertErr) return res.status(500).json({ error: 'Failed to activate your access.' })
+
+  res.json({ ok: true, reference })
 })
 
 app.get('/api/health', (_req, res) => {

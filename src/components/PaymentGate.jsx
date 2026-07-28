@@ -2,18 +2,24 @@ import { useState } from 'react'
 import AuthShell from './AuthShell'
 import { apiFetch } from '../lib/api'
 
-export default function PaymentGate({ onBack, onAlreadyPaid, onReturning }) {
+export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onPromoRedeemed }) {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [showDiscount, setShowDiscount] = useState(false)
+  const [activePanel, setActivePanel] = useState(null) // null | 'discount' | 'promo'
+
   const [discountAmount, setDiscountAmount] = useState('')
   const [discountEmail, setDiscountEmail] = useState('')
   const [discountReason, setDiscountReason] = useState('')
   const [discountLoading, setDiscountLoading] = useState(false)
   const [discountError, setDiscountError] = useState('')
   const [discountSent, setDiscountSent] = useState(false)
+
+  const [promoCode, setPromoCode] = useState('')
+  const [promoEmail, setPromoEmail] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
+  const [promoError, setPromoError] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -61,6 +67,25 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning }) {
     }
   }
 
+  async function handlePromoSubmit(e) {
+    e.preventDefault()
+    setPromoError('')
+    setPromoLoading(true)
+    try {
+      const res = await apiFetch('/api/promo/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: promoCode, email: promoEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      onPromoRedeemed(data.reference)
+    } catch (err) {
+      setPromoError(err.message)
+      setPromoLoading(false)
+    }
+  }
+
   return (
     <AuthShell eyebrow="Step 1 of 3">
       <div className="gate-top-row">
@@ -89,13 +114,49 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning }) {
         </button>
       </form>
 
-      {!showDiscount && !discountSent && (
-        <button type="button" className="btn-ghost-sm discount-toggle" onClick={() => setShowDiscount(true)}>
-          Request a discount
-        </button>
+      {!activePanel && !discountSent && (
+        <div className="gate-secondary-row">
+          <button type="button" className="btn-ghost-sm" onClick={() => setActivePanel('promo')}>
+            Have a promo code?
+          </button>
+          <button type="button" className="btn-ghost-sm" onClick={() => setActivePanel('discount')}>
+            Request a discount
+          </button>
+        </div>
       )}
 
-      {showDiscount && !discountSent && (
+      {activePanel === 'promo' && (
+        <form onSubmit={handlePromoSubmit} className="gate-form discount-form">
+          <label htmlFor="promo-code" className="field-label mt-3">Promo code</label>
+          <input
+            id="promo-code"
+            type="text"
+            required
+            placeholder="e.g. ODE-7X2K9M"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            className="field-input font-mono tracking-widest"
+          />
+
+          <label htmlFor="promo-email" className="field-label mt-3">Your email</label>
+          <input
+            id="promo-email"
+            type="email"
+            required
+            placeholder="you@example.com"
+            value={promoEmail}
+            onChange={(e) => setPromoEmail(e.target.value)}
+            className="field-input"
+          />
+
+          {promoError && <p className="form-error">{promoError}</p>}
+          <button type="submit" disabled={promoLoading} className="btn-primary w-full mt-2">
+            {promoLoading ? 'Checking…' : 'Redeem code →'}
+          </button>
+        </form>
+      )}
+
+      {activePanel === 'discount' && !discountSent && (
         <form onSubmit={handleDiscountSubmit} className="gate-form discount-form">
           <label htmlFor="discount-amount" className="field-label mt-3">How much discount would you like?</label>
           <input

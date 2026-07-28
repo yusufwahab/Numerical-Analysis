@@ -230,7 +230,13 @@ export default function App() {
     : null
 
   const [view, setView] = useState(psRef ? 'post-payment' : 'landing')
+  const [reference, setReference] = useState(psRef)
   const [user, setUser] = useState(null) // { matric, name, result? }
+
+  function handlePromoRedeemed(promoReference) {
+    setReference(promoReference)
+    setView('post-payment')
+  }
 
   function handleFound({ matric, name, result }) {
     setUser({ matric, name, result })
@@ -257,13 +263,14 @@ export default function App() {
       onBack={() => setView('landing')}
       onAlreadyPaid={handleFound}
       onReturning={() => setView('returning')}
+      onPromoRedeemed={handlePromoRedeemed}
     />
   }
 
   if (view === 'post-payment') {
     return (
       <PostPayment
-        reference={psRef}
+        reference={reference}
         onComplete={handleRegistered}
       />
     )

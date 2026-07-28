@@ -11,6 +11,11 @@ export default function PostPayment({ reference, onComplete }) {
 
   useEffect(() => {
     async function verify() {
+      if (reference?.startsWith('promo:')) {
+        // Already confirmed atomically during promo redemption — no Paystack call needed.
+        setStep('form')
+        return
+      }
       try {
         const res = await apiFetch('/api/pay/verify', {
           method: 'POST',
