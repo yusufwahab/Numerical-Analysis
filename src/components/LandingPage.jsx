@@ -8,6 +8,7 @@ export default function LandingPage({ onGetStarted }) {
           <span className="nav-mark" aria-hidden="true">∫</span>
           <span className="nav-brand">GET 210 <span className="nav-brand-dot">·</span> ODE Solver</span>
         </div>
+        <a href="tel:07012507986" className="nav-contact">Enquiries: 0701 250 7986</a>
       </nav>
 
       {/* Hero */}

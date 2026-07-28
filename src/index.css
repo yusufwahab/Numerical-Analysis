@@ -175,6 +175,16 @@ body {
 }
 .nav-brand-dot { color: var(--accent-2); }
 
+.nav-contact {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.5);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+.nav-contact:hover { color: rgba(255,255,255,0.85); }
+
 /* Hero */
 .hero {
   position: relative;
@@ -841,7 +851,8 @@ textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
 
 /* ─── Mobile ─────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .landing-nav { padding: 1rem 1.25rem; }
+  .landing-nav { padding: 1rem 1.25rem; flex-wrap: wrap; gap: 0.5rem; }
+  .nav-contact { font-size: 0.72rem; }
   .hero { padding: 6rem 1.25rem 3.5rem; min-height: 100vh; }
   .hero-title { font-size: 2.1rem; }
   .hero-sub { font-size: 0.95rem; }
