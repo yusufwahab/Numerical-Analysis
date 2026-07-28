@@ -119,7 +119,7 @@ app.post('/api/pay/init', async (req, res) => {
     method: 'POST',
     body: JSON.stringify({
       email,
-      amount: 150000,
+      amount: 160000,
       currency: 'NGN',
       callback_url: `${process.env.FRONTEND_URL}?payment=success`,
       metadata: { email },

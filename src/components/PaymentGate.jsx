@@ -205,7 +205,7 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
       <p className="gate-sub">
         Enter your email below — we'll check whether you've already paid. If you have, you'll go
         straight through to your notebook, no need to pay twice. If not, you'll be taken to a
-        secure checkout to complete the one-time ₦1,500 payment.
+        secure checkout to complete the one-time ₦1,600 payment.
       </p>
       <form onSubmit={handleSubmit} className="gate-form">
         <label htmlFor="email" className="field-label">Email address</label>
