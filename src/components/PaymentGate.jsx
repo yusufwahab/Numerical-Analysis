@@ -203,7 +203,9 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
       </div>
       <h2 className="gate-title">One-time access</h2>
       <p className="gate-sub">
-        Pay ₦1,500 once. Your work is saved — come back any time with your email or matric number.
+        Enter your email below — we'll check whether you've already paid. If you have, you'll go
+        straight through to your notebook, no need to pay twice. If not, you'll be taken to a
+        secure checkout to complete the one-time ₦1,500 payment.
       </p>
       <form onSubmit={handleSubmit} className="gate-form">
         <label htmlFor="email" className="field-label">Email address</label>
@@ -216,7 +218,6 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
           onChange={(e) => setEmail(e.target.value)}
           className="field-input"
         />
-        <p className="field-hint">Already paid? Enter the same email to access your work.</p>
         {error && <p className="form-error">{error}</p>}
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Checking…' : 'Continue →'}

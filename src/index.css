@@ -808,10 +808,10 @@ textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
    document meant to be printed and handed in) ───────────────────────────── */
 @media print {
   :root {
-    --ink:        #111110;
-    --ink-2:      #3d3d3a;
-    --ink-3:      #6b6b66;
-    --ink-4:      #9b9b94;
+    --ink:        #000000;
+    --ink-2:      #262624;
+    --ink-3:      #4d4d47;
+    --ink-4:      #6e6e68;
     --surface:    #ffffff;
     --surface-2:  #f2f2ef;
     --surface-3:  #e8e8e4;
