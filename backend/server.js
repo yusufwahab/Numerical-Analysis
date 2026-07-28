@@ -2,7 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { createClient } from '@supabase/supabase-js'
@@ -215,6 +215,7 @@ app.post('/api/solve', async (req, res) => {
 
   const scriptPath = path.join(__dirname, 'compute.py')
   const pythonCmd = process.platform === 'win32' ? 'py' : 'python3'
+  console.log(`[solve] spawning ${pythonCmd} with matric=${norm}`)
   const py = spawn(pythonCmd, [scriptPath, norm])
 
   let stdout = ''
@@ -224,11 +225,14 @@ app.post('/api/solve', async (req, res) => {
   py.stderr.on('data', (chunk) => { stderr += chunk })
   py.on('error', (err) => {
     responded = true
+    console.error(`[solve] spawn error:`, err.message)
     res.status(500).json({ error: 'Failed to start computation engine.', details: err.message })
   })
 
   py.on('close', async (code) => {
     if (responded) return
+    console.log(`[solve] python exited with code ${code}`)
+    if (stderr) console.error(`[solve] stderr:`, stderr)
     if (code !== 0) return res.status(500).json({ error: 'Computation failed.', details: stderr || stdout })
     try {
       const result = JSON.parse(stdout)
@@ -254,7 +258,13 @@ app.post('/api/email/confirm', async (req, res) => {
   }
 })
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+import { execSync } from 'child_process'
+
+app.get('/api/health', (_req, res) => {
+  let pyVersion = 'not found'
+  try { pyVersion = execSync('python3 --version 2>&1').toString().trim() } catch (e) { pyVersion = e.message }
+  res.json({ status: 'ok', python: pyVersion })
+})
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Backend listening on http://localhost:${PORT}`))
