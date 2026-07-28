@@ -248,7 +248,6 @@ export default function App() {
     return (
       <LandingPage
         onGetStarted={() => setView('payment')}
-        onReturning={() => setView('returning')}
       />
     )
   }
@@ -257,6 +256,7 @@ export default function App() {
     return <PaymentGate
       onBack={() => setView('landing')}
       onAlreadyPaid={handleFound}
+      onReturning={() => setView('returning')}
     />
   }
 

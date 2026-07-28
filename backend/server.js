@@ -64,6 +64,38 @@ async function sendBrevoEmail({ to, toName, matricNumber }) {
   })
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const DISCOUNT_NOTIFY_EMAIL = 'yabvil25@gmail.com'
+
+async function sendDiscountRequestEmail({ requesterEmail, amount, reason }) {
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { email: process.env.BREVO_SENDER_EMAIL, name: process.env.BREVO_SENDER_NAME },
+      to: [{ email: DISCOUNT_NOTIFY_EMAIL }],
+      subject: 'Discount Request — GET 210 ODE Solver',
+      htmlContent: `
+        <p>Somebody requested a discount.</p>
+        <p><strong>Requested discount:</strong> ${escapeHtml(amount)}</p>
+        <p><strong>Requester email:</strong> ${escapeHtml(requesterEmail)}</p>
+        ${reason ? `<p><strong>Message:</strong> ${escapeHtml(reason)}</p>` : ''}
+      `,
+    }),
+  })
+}
+
 // ─── Payment: Initialise ──────────────────────────────────────────────────────
 
 app.post('/api/pay/init', async (req, res) => {
@@ -261,6 +293,31 @@ app.post('/api/email/confirm', async (req, res) => {
     res.json({ ok: true })
   } catch {
     res.status(500).json({ error: 'Failed to send confirmation email.' })
+  }
+})
+
+// ─── Discount request ───────────────────────────────────────────────────────
+// Relayed straight to email — never written to the database, so the
+// requester's address is never stored anywhere.
+
+app.post('/api/discount/request', async (req, res) => {
+  const { email, amount, reason } = req.body ?? {}
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'A valid email address is required.' })
+  }
+  if (!amount || !String(amount).trim()) {
+    return res.status(400).json({ error: 'Let us know how much discount you\'d like.' })
+  }
+
+  try {
+    await sendDiscountRequestEmail({
+      requesterEmail: email.trim(),
+      amount: String(amount).trim(),
+      reason: reason?.trim(),
+    })
+    res.json({ ok: true })
+  } catch {
+    res.status(500).json({ error: 'Failed to send your request. Please try again.' })
   }
 })
 

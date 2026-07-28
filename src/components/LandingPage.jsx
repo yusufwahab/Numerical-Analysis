@@ -1,4 +1,4 @@
-export default function LandingPage({ onGetStarted, onReturning }) {
+export default function LandingPage({ onGetStarted }) {
   return (
     <div className="landing">
 
@@ -8,7 +8,6 @@ export default function LandingPage({ onGetStarted, onReturning }) {
           <span className="nav-mark" aria-hidden="true">∫</span>
           <span className="nav-brand">GET 210 <span className="nav-brand-dot">·</span> ODE Solver</span>
         </div>
-        <button className="nav-returning" onClick={onReturning}>Already paid? →</button>
       </nav>
 
       {/* Hero */}
