@@ -5,6 +5,7 @@ import LandingPage from './components/LandingPage'
 import PaymentGate from './components/PaymentGate'
 import PostPayment from './components/PostPayment'
 import ReturningUser from './components/ReturningUser'
+import { apiFetch } from './lib/api'
 
 function formatFormula(expr) {
   if (!expr) return ''
@@ -67,7 +68,7 @@ function NotebookView({ fullName, matric, result, onReset }) {
     if (result) return
     async function solve() {
       try {
-        const res = await fetch('/api/solve', {
+        const res = await apiFetch('/api/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ matric }),

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import AuthShell from './AuthShell'
+import { apiFetch } from '../lib/api'
 
 export default function ReturningUser({ onFound, onNotFound, onBack }) {
   const [matric, setMatric] = useState('')
@@ -11,7 +12,7 @@ export default function ReturningUser({ onFound, onNotFound, onBack }) {
     setError('')
     setLoading(true)
     try {
-      const res = await fetch('/api/user/lookup', {
+      const res = await apiFetch('/api/user/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matric }),

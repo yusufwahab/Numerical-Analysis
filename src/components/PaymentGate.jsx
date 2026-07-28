@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import AuthShell from './AuthShell'
+import { apiFetch } from '../lib/api'
 
 export default function PaymentGate({ onBack, onAlreadyPaid }) {
   const [email, setEmail] = useState('')
@@ -11,7 +12,7 @@ export default function PaymentGate({ onBack, onAlreadyPaid }) {
     setError('')
     setLoading(true)
     try {
-      const res = await fetch('/api/pay/init', {
+      const res = await apiFetch('/api/pay/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import AuthShell from './AuthShell'
+import { apiFetch } from '../lib/api'
 
 export default function PostPayment({ reference, onComplete }) {
   const [step, setStep] = useState('verifying') // verifying | form | error
@@ -11,7 +12,7 @@ export default function PostPayment({ reference, onComplete }) {
   useEffect(() => {
     async function verify() {
       try {
-        const res = await fetch('/api/pay/verify', {
+        const res = await apiFetch('/api/pay/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reference }),
@@ -32,7 +33,7 @@ export default function PostPayment({ reference, onComplete }) {
     setError('')
     setLoading(true)
     try {
-      const res = await fetch('/api/user/register', {
+      const res = await apiFetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reference, name, matric }),
@@ -42,7 +43,7 @@ export default function PostPayment({ reference, onComplete }) {
 
       // Send confirmation email using the email already on the payment record
       if (data.email) {
-        fetch('/api/email/confirm', {
+        apiFetch('/api/email/confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: data.email, name, matric: data.matric }),
