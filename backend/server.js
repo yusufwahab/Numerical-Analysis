@@ -130,10 +130,11 @@ app.post('/api/pay/init', async (req, res) => {
     return res.status(502).json({ error: 'Could not initialise payment. Please try again.' })
   }
 
-  await db().from('users').upsert(
+  const { error: pendingErr } = await db().from('users').upsert(
     { email, paystack_ref: data.data.reference, payment_status: 'pending' },
     { onConflict: 'paystack_ref', ignoreDuplicates: false }
   )
+  if (pendingErr) console.error('[pay/init] pending upsert failed:', pendingErr.message)
 
   res.json({ url: data.data.authorization_url, reference: data.data.reference })
 })
@@ -173,10 +174,11 @@ app.post('/api/pay/verify', async (req, res) => {
   // Upsert — handles case where webhook fired before redirect and row already exists,
   // or where pay/init row was never created
   const email = data.data.customer?.email?.toLowerCase().trim() ?? null
-  await db().from('users').upsert(
+  const { error: confirmErr } = await db().from('users').upsert(
     { email, paystack_ref: reference, payment_status: 'confirmed' },
     { onConflict: 'paystack_ref' }
   )
+  if (confirmErr) console.error('[pay/verify] confirmed upsert failed:', confirmErr.message)
   res.json({ ok: true })
 })
 
