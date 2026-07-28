@@ -275,14 +275,9 @@ export default function App() {
     : null
 
   const [view, setView] = useState(psRef ? 'post-payment' : 'landing')
-  const [reference, setReference] = useState(psRef)
+  const reference = psRef
   const [pendingMatric, setPendingMatric] = useState('')
   const [user, setUser] = useState(null) // { matric, name, result?, locked? }
-
-  function handlePromoRedeemed(promoReference) {
-    setReference(promoReference)
-    setView('post-payment')
-  }
 
   function handlePreviewGenerated({ matric, result }) {
     setPendingMatric(matric)
@@ -322,7 +317,6 @@ export default function App() {
       onBack={() => setView(pendingMatric ? 'notebook' : 'landing')}
       onAlreadyPaid={handleFound}
       onReturning={() => setView('returning')}
-      onPromoRedeemed={handlePromoRedeemed}
     />
   } else if (view === 'post-payment') {
     screen = (

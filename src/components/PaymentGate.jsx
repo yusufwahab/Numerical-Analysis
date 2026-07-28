@@ -2,7 +2,7 @@ import { useState } from 'react'
 import AuthShell from './AuthShell'
 import { apiFetch } from '../lib/api'
 
-export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onPromoRedeemed }) {
+export default function PaymentGate({ onBack, onAlreadyPaid, onReturning }) {
   const [mode, setMode] = useState('pay') // 'pay' | 'promo' | 'discount'
 
   const [email, setEmail] = useState('')
@@ -72,14 +72,21 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
     setPromoError('')
     setPromoLoading(true)
     try {
-      const res = await apiFetch('/api/promo/redeem', {
+      const res = await apiFetch('/api/promo/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: promoCode, email: promoEmail }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      onPromoRedeemed(data.reference)
+
+      if (data.already_paid) {
+        // Email already has a confirmed payment — skip Paystack entirely
+        onAlreadyPaid({ matric: data.matric, name: data.name })
+        return
+      }
+
+      window.location.href = data.url
     } catch (err) {
       setPromoError(err.message)
       setPromoLoading(false)
@@ -96,7 +103,8 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
         </div>
         <h2 className="gate-title">Redeem promo code</h2>
         <p className="gate-sub">
-          Have a one-time code? Enter it below with your email to unlock full access — no payment needed.
+          Have a one-time code? Enter it below with your email — you'll pay a discounted ₦600
+          instead of the full ₦1,600.
         </p>
         <form onSubmit={handlePromoSubmit} className="gate-form">
           <label htmlFor="promo-code" className="field-label">Promo code</label>
@@ -123,7 +131,7 @@ export default function PaymentGate({ onBack, onAlreadyPaid, onReturning, onProm
 
           {promoError && <p className="form-error">{promoError}</p>}
           <button type="submit" disabled={promoLoading} className="btn-primary w-full mt-2">
-            {promoLoading ? 'Checking…' : 'Redeem code →'}
+            {promoLoading ? 'Checking…' : 'Continue — Pay ₦600 →'}
           </button>
         </form>
       </AuthShell>

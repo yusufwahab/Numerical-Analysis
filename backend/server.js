@@ -199,6 +199,22 @@ app.post('/api/pay/verify', async (req, res) => {
     { onConflict: 'email' }
   )
   if (confirmErr) console.error('[pay/verify] confirmed upsert failed:', confirmErr.message)
+
+  // If this payment was initiated via a promo code, claim it now that
+  // payment is actually confirmed — conditional update guards against two
+  // concurrent verifies claiming the same code.
+  const promoCode = data.data.metadata?.promo_code
+  if (promoCode) {
+    const { data: promo } = await db().from('promo_codes').select('id, used').eq('code', promoCode).single()
+    if (promo && !promo.used) {
+      const { error: claimErr } = await db().from('promo_codes')
+        .update({ used: true, used_by_email: email, used_at: new Date().toISOString() })
+        .eq('id', promo.id)
+        .eq('used', false)
+      if (claimErr) console.error('[pay/verify] promo code claim failed:', claimErr.message)
+    }
+  }
+
   res.json({ ok: true })
 })
 
@@ -215,26 +231,12 @@ app.post('/api/user/register', async (req, res) => {
     return res.status(400).json({ error: 'Matriculation number must be exactly 9 digits.' })
   }
 
-  let email
-  if (reference.startsWith('promo:')) {
-    // Promo access was already confirmed atomically during redemption —
-    // just re-check the record rather than calling Paystack.
-    const { data: promoUser } = await db().from('users')
-      .select('email, payment_status')
-      .eq('paystack_ref', reference)
-      .single()
-    if (!promoUser || promoUser.payment_status !== 'confirmed') {
-      return res.status(402).json({ error: 'Promo access not confirmed for this code.' })
-    }
-    email = promoUser.email
-  } else {
-    // Re-verify with Paystack directly — don't rely solely on DB state
-    const verification = await paystackRequest(`/transaction/verify/${reference}`)
-    if (!verification.status || !verification.data || verification.data.status !== 'success') {
-      return res.status(402).json({ error: 'Payment not confirmed for this reference.' })
-    }
-    email = verification.data.customer?.email?.toLowerCase().trim() ?? null
+  // Re-verify with Paystack directly — don't rely solely on DB state
+  const verification = await paystackRequest(`/transaction/verify/${reference}`)
+  if (!verification.status || !verification.data || verification.data.status !== 'success') {
+    return res.status(402).json({ error: 'Payment not confirmed for this reference.' })
   }
+  const email = verification.data.customer?.email?.toLowerCase().trim() ?? null
 
   // Check matric not already taken by a different reference
   const { data: existing } = await db().from('users').select('paystack_ref').eq('matric', norm).single()
@@ -386,21 +388,25 @@ app.post('/api/discount/request', async (req, res) => {
 })
 
 // ─── Promo codes ──────────────────────────────────────────────────────────────
-// One-time codes that grant access without payment. Each row in promo_codes
-// can be claimed exactly once; the claim itself is a conditional update so two
-// people redeeming the same code at once can't both succeed.
+// One-time codes that unlock a discounted ₦600 price instead of the full
+// ₦1,600 — they still go through a real Paystack payment, just tagged with
+// the code via metadata. The code is only marked "used" once that payment is
+// actually confirmed at /api/pay/verify, not here at init time — so an
+// abandoned checkout never burns the code.
 
-app.post('/api/promo/redeem', async (req, res) => {
-  const { code, email } = req.body ?? {}
+const PROMO_AMOUNT = 60000 // ₦600, in kobo
+
+app.post('/api/promo/init', async (req, res) => {
+  const { code, email: rawEmail } = req.body ?? {}
   if (!code || !String(code).trim()) {
     return res.status(400).json({ error: 'Promo code required.' })
   }
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
     return res.status(400).json({ error: 'A valid email address is required.' })
   }
 
   const normCode = String(code).trim().toUpperCase()
-  const normEmail = email.toLowerCase().trim()
+  const email = rawEmail.toLowerCase().trim()
 
   const { data: promo } = await db().from('promo_codes')
     .select('id, used')
@@ -410,31 +416,38 @@ app.post('/api/promo/redeem', async (req, res) => {
   if (!promo) return res.status(404).json({ error: 'Invalid promo code.' })
   if (promo.used) return res.status(409).json({ error: 'This promo code has already been used.' })
 
-  // Only succeeds if the row is still unused at the moment of the update.
-  const { data: claimed } = await db().from('promo_codes')
-    .update({ used: true, used_by_email: normEmail, used_at: new Date().toISOString() })
-    .eq('id', promo.id)
-    .eq('used', false)
-    .select()
+  // Check if this email already has a confirmed payment
+  const { data: existingUser } = await db().from('users')
+    .select('matric, name, payment_status')
+    .eq('email', email)
     .single()
 
-  if (!claimed) return res.status(409).json({ error: 'This promo code has already been used.' })
-
-  const reference = `promo:${normCode}`
-  const { error: upsertErr } = await db().from('users').upsert(
-    { email: normEmail, paystack_ref: reference, payment_status: 'confirmed' },
-    { onConflict: 'email' }
-  )
-  if (upsertErr) {
-    console.error('[promo] users upsert failed, rolling back code claim:', upsertErr.message)
-    // Don't burn the code on a failure the user never actually benefited from.
-    await db().from('promo_codes')
-      .update({ used: false, used_by_email: null, used_at: null })
-      .eq('id', promo.id)
-    return res.status(500).json({ error: 'Failed to activate your access.' })
+  if (existingUser?.payment_status === 'confirmed') {
+    return res.json({ already_paid: true, matric: existingUser.matric, name: existingUser.name })
   }
 
-  res.json({ ok: true, reference })
+  const data = await paystackRequest('/transaction/initialize', {
+    method: 'POST',
+    body: JSON.stringify({
+      email,
+      amount: PROMO_AMOUNT,
+      currency: 'NGN',
+      callback_url: `${process.env.FRONTEND_URL}?payment=success`,
+      metadata: { email, promo_code: normCode },
+    }),
+  })
+
+  if (!data.status) {
+    return res.status(502).json({ error: 'Could not initialise payment. Please try again.' })
+  }
+
+  const { error: pendingErr } = await db().from('users').upsert(
+    { email, paystack_ref: data.data.reference, payment_status: 'pending' },
+    { onConflict: 'email', ignoreDuplicates: false }
+  )
+  if (pendingErr) console.error('[promo/init] pending upsert failed:', pendingErr.message)
+
+  res.json({ url: data.data.authorization_url, reference: data.data.reference })
 })
 
 app.get('/api/health', (_req, res) => {
