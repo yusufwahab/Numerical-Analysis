@@ -5,6 +5,7 @@ import LandingPage from './components/LandingPage'
 import PaymentGate from './components/PaymentGate'
 import PostPayment from './components/PostPayment'
 import ReturningUser from './components/ReturningUser'
+import PreviewGate from './components/PreviewGate'
 import ContactButton from './components/ContactButton'
 import { apiFetch } from './lib/api'
 
@@ -60,7 +61,7 @@ function ErrorTable({ q1 }) {
 
 // ─── Notebook view ───────────────────────────────────────────────────────────
 
-function NotebookView({ fullName, matric, result, onReset }) {
+function NotebookView({ fullName, matric, result, locked, onReset, onUnlock }) {
   const [loading, setLoading] = useState(!result)
   const [data, setData] = useState(result)
   const [error, setError] = useState('')
@@ -85,6 +86,20 @@ function NotebookView({ fullName, matric, result, onReset }) {
     }
     solve()
   }, [matric, result])
+
+  // Block the Ctrl/Cmd+P shortcut while locked. This is a mild deterrent, not
+  // real protection — the actual safeguard is the blurred Question 2 content
+  // below, which stays blurred even if print is triggered another way.
+  useEffect(() => {
+    if (!locked) return
+    function blockPrint(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', blockPrint)
+    return () => window.removeEventListener('keydown', blockPrint)
+  }, [locked])
 
   const q1CodeParams = data
     ? `matric = "${data.params.matric}"\nD = int(matric[4:6])\nS = int(matric[6:9])\nY0 = D + S / 1000\nprint(f"D = {data.params.D}, S = {data.params.S}, Y0 = {data.params.Y0}")`
@@ -111,9 +126,15 @@ function NotebookView({ fullName, matric, result, onReset }) {
         <div className="toolbar no-print">
           <div className="toolbar-left">
             <span className="eyebrow">GET 210 · Engineering Mathematics II</span>
+            {locked && <span className="preview-badge">Preview</span>}
           </div>
           <div className="toolbar-right">
-            {data && (
+            {data && locked && (
+              <button className="btn-primary" onClick={onUnlock}>
+                Unlock Full Access — ₦1,600 →
+              </button>
+            )}
+            {data && !locked && (
               <button className="btn-outline" onClick={() => window.print()}>
                 Export PDF
               </button>
@@ -128,7 +149,13 @@ function NotebookView({ fullName, matric, result, onReset }) {
         {error && (
           <div className="alert-error no-print">{error}</div>
         )}
-        {data && (
+        {data && locked && (
+          <div className="notice no-print">
+            This is a free preview — Question 1 is fully worked out below. Pay once to unlock
+            Question 2 and export a submission-ready PDF.
+          </div>
+        )}
+        {data && !locked && (
           <div className="notice no-print">
             The assessment requires a hard copy printed from an executed Jupyter Notebook — use
             this as a working reference, then transcribe into your own <code>.ipynb</code>.
@@ -141,7 +168,7 @@ function NotebookView({ fullName, matric, result, onReset }) {
               <h1>Numerical Solutions to ODEs: Code Assessment</h1>
               <p className="nb-meta">GET 210 — Dr. John Ogbemhe</p>
               <p className="mt-4">
-                <strong>Name:</strong> {fullName}<br />
+                {fullName && <><strong>Name:</strong> {fullName}<br /></>}
                 <strong>Matriculation Number:</strong> {data.params.matric}
               </p>
             </MarkdownCell>
@@ -188,32 +215,49 @@ function NotebookView({ fullName, matric, result, onReset }) {
               <Q1Discussion result={data} />
             </MarkdownCell>
 
-            <MarkdownCell className="mt-10">
-              <h2>Question 2 — dy/dt = −{data.q2.K}y − t² + 1</h2>
-              <p>Damped system with K = D = {data.q2.K}, solved with Heun's method at h = 0.2.</p>
-            </MarkdownCell>
-            <CodeCell index={5} code={q2CodeExact} />
-            <OutputCell index={5}>
-              <p className="formula-display">y(t) = {formatFormula(data.q2.exact_formula)}</p>
-            </OutputCell>
-            <CodeCell index={6} code={q2CodeRun} />
-            <OutputCell index={6}>
-              <div className="stat-grid mb-4">
-                <StatCard label="Damping K = D" value={data.q2.K} />
-                <StatCard label="Max abs. error" value={data.q2.max_error.toFixed(6)} />
-                <StatCard label="Final abs. error @ t=2" value={data.q2.final_error.toFixed(6)} />
-              </div>
-              <img
-                src={`data:image/png;base64,${data.q2.plot}`}
-                alt="Question 2 plot"
-                className="nb-plot"
-              />
-            </OutputCell>
+            <div className={locked ? 'locked-section' : undefined}>
+              <div className={locked ? 'locked-content' : undefined}>
+                <MarkdownCell className="mt-10">
+                  <h2>Question 2 — dy/dt = −{data.q2.K}y − t² + 1</h2>
+                  <p>Damped system with K = D = {data.q2.K}, solved with Heun's method at h = 0.2.</p>
+                </MarkdownCell>
+                <CodeCell index={5} code={q2CodeExact} />
+                <OutputCell index={5}>
+                  <p className="formula-display">y(t) = {formatFormula(data.q2.exact_formula)}</p>
+                </OutputCell>
+                <CodeCell index={6} code={q2CodeRun} />
+                <OutputCell index={6}>
+                  <div className="stat-grid mb-4">
+                    <StatCard label="Damping K = D" value={data.q2.K} />
+                    <StatCard label="Max abs. error" value={data.q2.max_error.toFixed(6)} />
+                    <StatCard label="Final abs. error @ t=2" value={data.q2.final_error.toFixed(6)} />
+                  </div>
+                  <img
+                    src={`data:image/png;base64,${data.q2.plot}`}
+                    alt="Question 2 plot"
+                    className="nb-plot"
+                  />
+                </OutputCell>
 
-            <MarkdownCell className="mt-6">
-              <h3>Discussion: Numerical Stability</h3>
-              <Q2Discussion result={data} />
-            </MarkdownCell>
+                <MarkdownCell className="mt-6">
+                  <h3>Discussion: Numerical Stability</h3>
+                  <Q2Discussion result={data} />
+                </MarkdownCell>
+              </div>
+
+              {locked && (
+                <div className="locked-overlay no-print">
+                  <div className="locked-overlay-card">
+                    <span className="locked-icon" aria-hidden="true">🔒</span>
+                    <h3>Unlock the full notebook</h3>
+                    <p>Question 2 — the damped system, its plot, and the full stability discussion — unlocks with a one-time payment.</p>
+                    <button className="btn-primary w-full" onClick={onUnlock}>
+                      Unlock Full Access — ₦1,600 →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </article>
         )}
       </div>
@@ -232,22 +276,29 @@ export default function App() {
 
   const [view, setView] = useState(psRef ? 'post-payment' : 'landing')
   const [reference, setReference] = useState(psRef)
-  const [user, setUser] = useState(null) // { matric, name, result? }
+  const [pendingMatric, setPendingMatric] = useState('')
+  const [user, setUser] = useState(null) // { matric, name, result?, locked? }
 
   function handlePromoRedeemed(promoReference) {
     setReference(promoReference)
     setView('post-payment')
   }
 
+  function handlePreviewGenerated({ matric, result }) {
+    setPendingMatric(matric)
+    setUser({ matric, name: '', result, locked: true })
+    setView('notebook')
+  }
+
   function handleFound({ matric, name, result }) {
-    setUser({ matric, name, result })
+    setUser({ matric, name, result, locked: false })
     setView('notebook')
   }
 
   function handleRegistered({ matric, name }) {
     // Clear ?payment=success from URL
     window.history.replaceState({}, '', '/')
-    setUser({ matric, name, result: null })
+    setUser({ matric, name, result: null, locked: false })
     setView('notebook')
   }
 
@@ -256,12 +307,19 @@ export default function App() {
   if (view === 'landing') {
     screen = (
       <LandingPage
-        onGetStarted={() => setView('payment')}
+        onGetStarted={() => setView('preview')}
+      />
+    )
+  } else if (view === 'preview') {
+    screen = (
+      <PreviewGate
+        onGenerated={handlePreviewGenerated}
+        onBack={() => setView('landing')}
       />
     )
   } else if (view === 'payment') {
     screen = <PaymentGate
-      onBack={() => setView('landing')}
+      onBack={() => setView(pendingMatric ? 'notebook' : 'landing')}
       onAlreadyPaid={handleFound}
       onReturning={() => setView('returning')}
       onPromoRedeemed={handlePromoRedeemed}
@@ -270,6 +328,7 @@ export default function App() {
     screen = (
       <PostPayment
         reference={reference}
+        initialMatric={pendingMatric}
         onComplete={handleRegistered}
       />
     )
@@ -287,7 +346,9 @@ export default function App() {
         fullName={user.name}
         matric={user.matric}
         result={user.result}
-        onReset={() => { setUser(null); setView('landing') }}
+        locked={user.locked}
+        onUnlock={() => setView('payment')}
+        onReset={() => { setUser(null); setPendingMatric(''); setView('landing') }}
       />
     )
   }

@@ -11,12 +11,32 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
+app.set('trust proxy', 1) // Render sits behind a proxy — needed for accurate req.ip
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }))
 app.use('/api/pay/webhook', express.raw({ type: 'application/json' }))
 app.use(express.json())
+
+// ─── Simple in-memory rate limiter ─────────────────────────────────────────
+// /api/solve is reachable without payment now (free preview), so it needs a
+// basic guard against being hammered for free compute. Per-instance only —
+// fine at this scale, no need for a shared store.
+const rateLimitHits = new Map()
+function rateLimit({ windowMs, max }) {
+  return (req, res, next) => {
+    const key = req.ip
+    const now = Date.now()
+    const hits = (rateLimitHits.get(key) ?? []).filter((t) => now - t < windowMs)
+    if (hits.length >= max) {
+      return res.status(429).json({ error: 'Too many requests. Please try again in a few minutes.' })
+    }
+    hits.push(now)
+    rateLimitHits.set(key, hits)
+    next()
+  }
+}
 
 // Lazy Supabase client — only created on first request, not at import time
 let _supabase = null
@@ -253,7 +273,7 @@ app.post('/api/user/lookup', async (req, res) => {
 
 // ─── Solve ────────────────────────────────────────────────────────────────────
 
-app.post('/api/solve', async (req, res) => {
+app.post('/api/solve', rateLimit({ windowMs: 10 * 60 * 1000, max: 10 }), async (req, res) => {
   const { matric } = req.body ?? {}
   const norm = normalizeMatric(matric ?? '')
 

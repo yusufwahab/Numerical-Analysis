@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import AuthShell from './AuthShell'
 import { apiFetch } from '../lib/api'
 
-export default function PostPayment({ reference, onComplete }) {
+export default function PostPayment({ reference, initialMatric = '', onComplete }) {
   const [step, setStep] = useState('verifying') // verifying | form | error
   const [name, setName] = useState('')
-  const [matric, setMatric] = useState('')
+  const [matric, setMatric] = useState(initialMatric)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 

@@ -673,6 +673,55 @@ textarea.field-input { resize: vertical; min-height: 4.5rem; line-height: 1.5; }
   color: var(--ink);
 }
 
+/* ─── Preview / locked content ───────────────────────────────────────────── */
+.preview-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  margin-left: 0.75rem;
+  background: rgba(59,130,246,0.14);
+  border: 1px solid rgba(59,130,246,0.35);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.locked-section { position: relative; }
+
+.locked-content {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+}
+
+.locked-overlay {
+  position: sticky;
+  top: 5.5rem;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding: 0 1.5rem;
+  pointer-events: none;
+}
+
+.locked-overlay-card {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  padding: 1.75rem 1.5rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 48px -20px rgba(0,0,0,0.7);
+}
+.locked-icon { display: block; font-size: 1.5rem; margin-bottom: 0.6rem; }
+.locked-overlay-card h3 { margin: 0 0 0.5rem; font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+.locked-overlay-card p { margin: 0 0 1.25rem; font-size: 0.85rem; line-height: 1.55; color: var(--ink-3); }
+
 /* ─── Stat cards ─────────────────────────────────────────────────────────── */
 .stat-grid {
   display: grid;
