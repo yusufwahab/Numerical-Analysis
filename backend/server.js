@@ -214,15 +214,21 @@ app.post('/api/solve', async (req, res) => {
   }
 
   const scriptPath = path.join(__dirname, 'compute.py')
-  const py = spawn('py', [scriptPath, norm])
+  const pythonCmd = process.platform === 'win32' ? 'py' : 'python3'
+  const py = spawn(pythonCmd, [scriptPath, norm])
 
   let stdout = ''
   let stderr = ''
+  let responded = false
   py.stdout.on('data', (chunk) => { stdout += chunk })
   py.stderr.on('data', (chunk) => { stderr += chunk })
-  py.on('error', (err) => res.status(500).json({ error: 'Failed to start computation engine.', details: err.message }))
+  py.on('error', (err) => {
+    responded = true
+    res.status(500).json({ error: 'Failed to start computation engine.', details: err.message })
+  })
 
   py.on('close', async (code) => {
+    if (responded) return
     if (code !== 0) return res.status(500).json({ error: 'Computation failed.', details: stderr || stdout })
     try {
       const result = JSON.parse(stdout)

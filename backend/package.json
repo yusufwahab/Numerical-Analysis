@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "echo 'No build step required'"
+    "build": "pip3 install -r requirements.txt"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",
