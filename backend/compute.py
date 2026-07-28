@@ -5,6 +5,13 @@ Given a 9-digit matriculation number, derives the student's unique
 parameters (D, S, Y0), solves Question 1 (Euler vs Heun, h=0.1 and h=0.2,
 convergence order) and Question 2 (damped Heun vs exact analytical
 solution), and emits everything as JSON on stdout for the Express backend.
+
+Both questions share the same ODE family — y' + p*y = 1 - t^2 — with p = -1
+for Question 1 (undamped/growing) and p = K for Question 2 (damped). The
+exact solution is derived analytically via undetermined coefficients (not
+just solved numerically), and every intermediate step of that derivation is
+returned so the frontend can render a full worked solution, not just the
+final formula.
 """
 
 import sys
@@ -64,18 +71,135 @@ def fig_to_base64(fig):
     return base64.b64encode(buf.read()).decode("utf-8")
 
 
+# ---------- Shared analytical derivation: y' + p*y = 1 - t^2, y(0) = Y0 ----------
+#
+# Solved once, symbolically, in terms of the free parameter p so the same
+# machinery derives both Question 1 (p = -1) and Question 2 (p = K) — the
+# undetermined-coefficients algebra is identical, only p differs.
+
+def _prettiest(expr):
+    """Return whichever of factor()/simplify() is structurally simplest —
+    factor() turns t^2+2t+1 into the much more readable (t+1)^2, but on
+    expressions with no clean common factor it can make things *uglier*
+    (e.g. forcing everything over a common denominator), so try both and
+    keep whichever has fewer operations. (Comparing rendered LaTeX length
+    doesn't work here: sympy's \\left(...\\right) delimiters make compact
+    factored forms look "longer" as source text than they render.)"""
+    candidates = [expr]
+    try:
+        candidates.append(sp.factor(expr))
+    except Exception:
+        pass
+    try:
+        candidates.append(sp.simplify(expr))
+    except Exception:
+        pass
+    return min(candidates, key=sp.count_ops)
+
+
+_t, _p, _a, _b, _c, _C, _Y0 = sp.symbols("t p a b c C Y0")
+
+_yp_trial = _a * _t**2 + _b * _t + _c
+_lhs = sp.diff(_yp_trial, _t) + _p * _yp_trial
+_rhs = 1 - _t**2
+
+# Match coefficients of t^2, t, 1 on both sides (undetermined coefficients).
+_coeff_eqs = [sp.Eq(coef, 0) for coef in sp.Poly(sp.expand(_lhs - _rhs), _t).all_coeffs()]
+_coeffs_general = sp.solve(_coeff_eqs, [_a, _b, _c], dict=True)[0]
+
+_yp_general = _yp_trial.subs(_coeffs_general)
+_y_gen_general = _C * sp.exp(-_p * _t) + _yp_general
+_C_general = sp.solve(sp.Eq(_y_gen_general.subs(_t, 0), _Y0), _C)[0]
+
+
+def derive_exact_solution(p_val, Y0_val):
+    """Full step-by-step derivation of y' + p*y = 1 - t^2, y(0) = Y0.
+
+    Every field is a plain Python-expression string (e.g. "t**2 + 2*t + 1"),
+    matching the existing exact_formula convention — the frontend prettifies
+    these for display via the same formatFormula() regex helper it already
+    uses (** -> ^, * -> ·, exp -> e^). There's no LaTeX renderer in the app,
+    so LaTeX strings would just show raw backslashes.
+    """
+    if p_val == 0:
+        # Degenerate case (no damping/growth term): directly integrable.
+        yp_num = sp.integrate(_rhs, _t)
+        C_val = float(Y0_val - yp_num.subs(_t, 0))
+        y_final_num = sp.simplify(yp_num + C_val)
+        return {
+            "p": float(p_val),
+            "degenerate": True,
+            "standard_form_str": "dy/dt = 1 - t**2",
+            "homogeneous_str": "C",
+            "particular_trial_str": None,
+            "matching_equation_str": None,
+            "coefficients": None,
+            "particular_solution_str": str(sp.simplify(yp_num)),
+            "general_solution_str": f"C + {yp_num}",
+            "c_value": None,
+            "C_value": C_val,
+            "final_solution_str": str(y_final_num),
+            "final_solution_func": sp.lambdify(_t, y_final_num, "numpy"),
+        }
+
+    coeffs_num = {k: v.subs(_p, p_val) for k, v in _coeffs_general.items()}
+    a_val = float(coeffs_num[_a])
+    b_val = float(coeffs_num[_b])
+    c_val = float(coeffs_num[_c])
+
+    yp_num = _prettiest(sp.expand(_yp_general.subs(_p, p_val)))
+
+    # Built by hand rather than from str(Eq(...)) — sympy's automatic term
+    # ordering renders "y' - y = ..." as the equivalent but less
+    # conventional "-y + y' = ...".
+    p_display = sp.nsimplify(p_val)
+    if p_val == -1:
+        standard_form_str = "dy/dt - y = 1 - t**2"
+    elif p_val > 0:
+        standard_form_str = f"dy/dt + {p_display}*y = 1 - t**2"
+    else:
+        standard_form_str = f"dy/dt + ({p_display})*y = 1 - t**2"
+
+    matching_lhs = sp.expand(_lhs.subs(_p, p_val))
+    matching_rhs = sp.expand(_rhs)
+    matching_equation_str = f"{matching_lhs} = {matching_rhs}"
+
+    homogeneous = _C * sp.exp(-p_val * _t)
+    general_solution = homogeneous + yp_num
+
+    C_val = float(_C_general.subs({_p: p_val, _Y0: Y0_val}))
+    # Built compositionally from the already-prettified homogeneous and
+    # particular pieces, rather than re-simplifying the fully expanded sum —
+    # factor() can't usefully factor an exponential term and a polynomial
+    # term together, so simplifying the combined sum just re-expands (t+1)^2
+    # back out. This keeps the boxed final answer in the same "C·e^(-pt) +
+    # (nice particular solution)" shape used throughout the derivation.
+    y_final_num = homogeneous.subs(_C, C_val) + yp_num
+
+    return {
+        "p": float(p_val),
+        "degenerate": False,
+        "standard_form_str": standard_form_str,
+        "homogeneous_str": str(homogeneous),
+        "particular_trial_str": str(_yp_trial),
+        "matching_equation_str": matching_equation_str,
+        "coefficients": {"a": a_val, "b": b_val, "c": c_val},
+        "particular_solution_str": str(yp_num),
+        "general_solution_str": str(general_solution),
+        "c_value": c_val,
+        "C_value": C_val,
+        "final_solution_str": str(y_final_num),
+        "final_solution_func": sp.lambdify(_t, y_final_num, "numpy"),
+    }
+
+
 def main():
     matric = sys.argv[1]
     D, S, Y0 = parse_matric(matric)
 
-    t_sym = sp.symbols("t")
-    y_fn = sp.Function("y")
-
-    # ---------- Question 1: dy/dt = y - t^2 + 1 ----------
-    ode1 = sp.Eq(y_fn(t_sym).diff(t_sym), y_fn(t_sym) - t_sym**2 + 1)
-    sol1 = sp.dsolve(ode1, y_fn(t_sym), ics={y_fn(0): Y0})
-    exact1_expr = sp.simplify(sol1.rhs)
-    exact1 = sp.lambdify(t_sym, exact1_expr, "numpy")
+    # ---------- Question 1: dy/dt = y - t^2 + 1  (i.e. y' + (-1)y = 1 - t^2) ----------
+    deriv1 = derive_exact_solution(-1, Y0)
+    exact1 = deriv1["final_solution_func"]
 
     f1 = lambda t, y: y - t**2 + 1
 
@@ -108,9 +232,13 @@ def main():
     t_fine = np.linspace(0, 2, 400)
     ax1.plot(t_fine, exact1(t_fine), "k-", linewidth=2, label="Exact")
     ax1.plot(q1_runs[0.1]["euler_t"], q1_runs[0.1]["euler_y"], "o--",
-              markersize=3, label="Euler (h=0.1)")
+              color="tab:red", markersize=4, label="Euler (h=0.1)")
     ax1.plot(q1_runs[0.1]["heun_t"], q1_runs[0.1]["heun_y"], "s--",
-              markersize=3, label="Heun (h=0.1)")
+              color="tab:blue", markersize=4, label="Heun (h=0.1)")
+    ax1.plot(q1_runs[0.2]["euler_t"], q1_runs[0.2]["euler_y"], "^:",
+              color="tab:orange", markersize=5, label="Euler (h=0.2)")
+    ax1.plot(q1_runs[0.2]["heun_t"], q1_runs[0.2]["heun_y"], "d:",
+              color="tab:green", markersize=5, label="Heun (h=0.2)")
     ax1.set_xlabel("t")
     ax1.set_ylabel("y")
     ax1.set_title(f"Question 1:  dy/dt = y - t² + 1,   y(0) = {Y0}")
@@ -118,22 +246,20 @@ def main():
     ax1.grid(alpha=0.3)
     q1_plot = fig_to_base64(fig1)
 
-    # ---------- Question 2: dy/dt = -K y - t^2 + 1 ----------
+    # ---------- Question 2: dy/dt = -K y - t^2 + 1  (i.e. y' + K y = 1 - t^2) ----------
     K = D
-    ode2 = sp.Eq(y_fn(t_sym).diff(t_sym), -K * y_fn(t_sym) - t_sym**2 + 1)
-    sol2 = sp.dsolve(ode2, y_fn(t_sym), ics={y_fn(0): Y0})
-    exact2_expr = sp.simplify(sol2.rhs)
-    exact2 = sp.lambdify(t_sym, exact2_expr, "numpy")
+    deriv2 = derive_exact_solution(K, Y0)
+    exact2 = deriv2["final_solution_func"]
 
     f2 = lambda t, y: -K * y - t**2 + 1
-    th2, yh2 = heun(f2, Y0, 0, 2, 0.2)
+    h2 = 0.2
+    th2, yh2 = heun(f2, Y0, 0, 2, h2)
     exact2_vals = [float(exact2(tt)) for tt in th2]
     errors2 = [abs(e - float(y)) for e, y in zip(exact2_vals, yh2.tolist())]
 
     # Heun/RK2 linear stability on the homogeneous part y' = -Ky:
     # growth factor R(z) = 1 + z + z^2/2 with z = -K*h; stable iff |R(z)| <= 1,
     # which on the negative real axis holds for z in [-2, 0], i.e. h <= 2/K.
-    h2 = 0.2
     z_stab = -K * h2
     growth_factor = 1 + z_stab + z_stab**2 / 2
     stability = {
@@ -156,12 +282,24 @@ def main():
     ax2.grid(alpha=0.3)
     q2_plot = fig_to_base64(fig2)
 
+    # Absolute error profile vs t — shows error decaying rather than growing.
+    fig2b, ax2b = plt.subplots(figsize=(7, 4))
+    ax2b.plot(th2, errors2, "o-", color="tab:red")
+    ax2b.set_xlabel("t")
+    ax2b.set_ylabel("Absolute error")
+    ax2b.set_title("Question 2: Absolute Error Profile of Heun Approximation vs t")
+    ax2b.grid(alpha=0.3)
+    q2_error_plot = fig_to_base64(fig2b)
+
+    def derivation_json(d):
+        return {k: v for k, v in d.items() if k not in ("final_solution_func",)}
+
     output = {
         "params": {"D": D, "S": S, "Y0": Y0, "matric": matric},
         "q1": {
-            "exact_formula": str(exact1_expr),
-            "exact_latex": sp.latex(exact1_expr),
+            "exact_formula": deriv1["final_solution_str"],
             "exact_final": float(exact1(2.0)),
+            "derivation": derivation_json(deriv1),
             "errors": {
                 "h0.2": {"euler": q1_runs[0.2]["euler_error"], "heun": q1_runs[0.2]["heun_error"]},
                 "h0.1": {"euler": q1_runs[0.1]["euler_error"], "heun": q1_runs[0.1]["heun_error"]},
@@ -183,8 +321,8 @@ def main():
         },
         "q2": {
             "K": K,
-            "exact_formula": str(exact2_expr),
-            "exact_latex": sp.latex(exact2_expr),
+            "exact_formula": deriv2["final_solution_str"],
+            "derivation": derivation_json(deriv2),
             "t": th2.tolist(),
             "heun_y": yh2.tolist(),
             "exact_y": exact2_vals,
@@ -193,6 +331,7 @@ def main():
             "final_error": float(errors2[-1]),
             "stability": stability,
             "plot": q2_plot,
+            "error_plot": q2_error_plot,
         },
     }
     print(json.dumps(output))

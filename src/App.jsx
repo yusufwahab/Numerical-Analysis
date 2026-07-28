@@ -14,6 +14,48 @@ function formatFormula(expr) {
   return expr.replace(/\*\*/g, '^').replace(/\*/g, '·').replace(/exp/g, 'e^')
 }
 
+function fmt(n, d = 4) {
+  return Number(n).toFixed(d)
+}
+
+function DerivationBlock({ derivation, y0 }) {
+  const d = derivation
+  if (!d) return null
+  return (
+    <>
+      <h3>Exact (Analytical) Solution</h3>
+      <p>
+        This is a linear first-order ODE: <code>{formatFormula(d.standard_form_str)}</code>.
+      </p>
+      {d.degenerate ? (
+        <p>
+          With no linear feedback term (K = 0), this integrates directly: <code>y = ∫(1 − t²) dt = {formatFormula(d.particular_solution_str)} + C</code>.
+        </p>
+      ) : (
+        <>
+          <p>
+            Homogeneous solution: <code>y_h = {formatFormula(d.homogeneous_str)}</code>.
+          </p>
+          <p>
+            Particular solution (trying <code>y_p = {formatFormula(d.particular_trial_str)}</code>): substituting
+            into the ODE gives <code>{formatFormula(d.matching_equation_str)}</code>. Matching coefficients of{' '}
+            t², t and 1 gives <strong>a = {fmt(d.coefficients.a, 4)}</strong>,{' '}
+            <strong>b = {fmt(d.coefficients.b, 4)}</strong>, <strong>c = {fmt(d.coefficients.c, 4)}</strong>, so{' '}
+            <code>y_p = {formatFormula(d.particular_solution_str)}</code>.
+          </p>
+        </>
+      )}
+      <p>
+        General solution: <code>y(t) = {formatFormula(d.general_solution_str)}</code>.
+      </p>
+      <p>
+        Applying y(0) = Y₀ = {fmt(y0, 4)}: <strong>C = {fmt(d.C_value, 4)}</strong>.
+      </p>
+      <p className="formula-display">y(t) = {formatFormula(d.final_solution_str)}</p>
+    </>
+  )
+}
+
 function StatCard({ label, value, accent = false }) {
   return (
     <div className="stat-card">
@@ -54,6 +96,33 @@ function ErrorTable({ q1 }) {
             <td className="font-mono accent">{q1.convergence_order.heun?.toFixed(3) ?? 'n/a'}</td>
           </tr>
         </tfoot>
+      </table>
+    </div>
+  )
+}
+
+function Q2Table({ q2 }) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>t</th>
+            <th>Heun y</th>
+            <th>Exact y</th>
+            <th>Abs. error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {q2.t.map((tt, i) => (
+            <tr key={tt}>
+              <td className="font-mono">{tt.toFixed(2)}</td>
+              <td className="font-mono">{q2.heun_y[i].toFixed(6)}</td>
+              <td className="font-mono">{q2.exact_y[i].toFixed(6)}</td>
+              <td className="font-mono">{q2.errors[i].toExponential(4)}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
   )
@@ -191,6 +260,9 @@ function NotebookView({ fullName, matric, result, locked, onReset, onUnlock }) {
               <h2>Question 1 — dy/dt = y − t² + 1</h2>
               <p>Solved on 0 ≤ t ≤ 2 with y(0) = Y₀ = {data.params.Y0}, using Euler's and Heun's methods at h = 0.1 and h = 0.2.</p>
             </MarkdownCell>
+            <MarkdownCell>
+              <DerivationBlock derivation={data.q1.derivation} y0={data.params.Y0} />
+            </MarkdownCell>
             <CodeCell index={2} code={q1CodeMethods} />
             <CodeCell index={3} code={q1CodeRun} />
             <OutputCell index={3}>
@@ -221,6 +293,9 @@ function NotebookView({ fullName, matric, result, locked, onReset, onUnlock }) {
                   <h2>Question 2 — dy/dt = −{data.q2.K}y − t² + 1</h2>
                   <p>Damped system with K = D = {data.q2.K}, solved with Heun's method at h = 0.2.</p>
                 </MarkdownCell>
+                <MarkdownCell>
+                  <DerivationBlock derivation={data.q2.derivation} y0={data.params.Y0} />
+                </MarkdownCell>
                 <CodeCell index={5} code={q2CodeExact} />
                 <OutputCell index={5}>
                   <p className="formula-display">y(t) = {formatFormula(data.q2.exact_formula)}</p>
@@ -232,10 +307,16 @@ function NotebookView({ fullName, matric, result, locked, onReset, onUnlock }) {
                     <StatCard label="Max abs. error" value={data.q2.max_error.toFixed(6)} />
                     <StatCard label="Final abs. error @ t=2" value={data.q2.final_error.toFixed(6)} />
                   </div>
+                  <Q2Table q2={data.q2} />
                   <img
                     src={`data:image/png;base64,${data.q2.plot}`}
                     alt="Question 2 plot"
-                    className="nb-plot"
+                    className="nb-plot mt-4"
+                  />
+                  <img
+                    src={`data:image/png;base64,${data.q2.error_plot}`}
+                    alt="Question 2 absolute error profile"
+                    className="nb-plot mt-4"
                   />
                 </OutputCell>
 
@@ -309,6 +390,7 @@ export default function App() {
     screen = (
       <PreviewGate
         onGenerated={handlePreviewGenerated}
+        onAlreadyPaid={handleFound}
         onBack={() => setView('landing')}
       />
     )

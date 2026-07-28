@@ -2,7 +2,7 @@ import { useState } from 'react'
 import AuthShell from './AuthShell'
 import { apiFetch } from '../lib/api'
 
-export default function PreviewGate({ onGenerated, onBack }) {
+export default function PreviewGate({ onGenerated, onAlreadyPaid, onBack }) {
   const [matric, setMatric] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -12,6 +12,22 @@ export default function PreviewGate({ onGenerated, onBack }) {
     setError('')
     setLoading(true)
     try {
+      // Check whether this matric already has a confirmed payment first —
+      // a returning paid user shouldn't be shown the locked preview again
+      // just because they used the default "Generate My Notebook" button
+      // instead of the separate "Already paid?" link.
+      const lookupRes = await apiFetch('/api/user/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matric }),
+      })
+      if (lookupRes.status !== 404) {
+        const lookupData = await lookupRes.json()
+        if (!lookupRes.ok) throw new Error(lookupData.error)
+        onAlreadyPaid({ matric: lookupData.matric, name: lookupData.name, result: lookupData.result })
+        return
+      }
+
       const res = await apiFetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

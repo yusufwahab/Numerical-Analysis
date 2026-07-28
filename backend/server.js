@@ -277,7 +277,12 @@ app.post('/api/user/lookup', async (req, res) => {
     return res.status(404).json({ error: 'No confirmed payment found for this matric number.' })
   }
 
-  res.json({ matric: row.matric, name: row.name, result: row.result ?? null })
+  // Results cached before the derivation/error-plot fields were added have
+  // an outdated shape. Treat those as stale rather than serving them as-is —
+  // the frontend already knows to recompute fresh whenever result is null.
+  const cachedResult = row.result?.q1?.derivation ? row.result : null
+
+  res.json({ matric: row.matric, name: row.name, result: cachedResult })
 })
 
 // ─── Solve ────────────────────────────────────────────────────────────────────
