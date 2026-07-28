@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AuthShell from './AuthShell'
 
 export default function PaymentGate({ onBack, onAlreadyPaid }) {
   const [email, setEmail] = useState('')
@@ -32,31 +33,29 @@ export default function PaymentGate({ onBack, onAlreadyPaid }) {
   }
 
   return (
-    <div className="gate-wrap">
-      <div className="gate-card">
-        <button className="back-link" onClick={onBack}>← Back</button>
-        <h2 className="gate-title">One-time access</h2>
-        <p className="gate-sub">
-          Pay ₦1,500 once. Your work is saved — come back any time with your email or matric number.
-        </p>
-        <form onSubmit={handleSubmit} className="gate-form">
-          <label htmlFor="email" className="field-label">Email address</label>
-          <input
-            id="email"
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="field-input"
-          />
-          <p className="field-hint">Already paid? Enter the same email to access your work.</p>
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? 'Checking…' : 'Continue →'}
-          </button>
-        </form>
-      </div>
-    </div>
+    <AuthShell eyebrow="Step 1 of 3">
+      <button className="back-link" onClick={onBack}>← Back</button>
+      <h2 className="gate-title">One-time access</h2>
+      <p className="gate-sub">
+        Pay ₦1,500 once. Your work is saved — come back any time with your email or matric number.
+      </p>
+      <form onSubmit={handleSubmit} className="gate-form">
+        <label htmlFor="email" className="field-label">Email address</label>
+        <input
+          id="email"
+          type="email"
+          required
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="field-input"
+        />
+        <p className="field-hint">Already paid? Enter the same email to access your work.</p>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? 'Checking…' : 'Continue →'}
+        </button>
+      </form>
+    </AuthShell>
   )
 }

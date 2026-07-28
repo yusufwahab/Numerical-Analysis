@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import AuthShell from './AuthShell'
 
 export default function PostPayment({ reference, onComplete }) {
   const [step, setStep] = useState('verifying') // verifying | form | error
@@ -58,64 +59,59 @@ export default function PostPayment({ reference, onComplete }) {
 
   if (step === 'verifying') {
     return (
-      <div className="gate-wrap">
-        <div className="gate-card">
-          <p className="gate-sub">Confirming your payment…</p>
-        </div>
-      </div>
+      <AuthShell eyebrow="Step 2 of 3">
+        <h2 className="gate-title">Confirming payment</h2>
+        <p className="gate-sub">Hang tight — verifying your transaction with Paystack…</p>
+      </AuthShell>
     )
   }
 
   if (step === 'error') {
     return (
-      <div className="gate-wrap">
-        <div className="gate-card">
-          <h2 className="gate-title">Payment not confirmed</h2>
-          <p className="form-error">{error}</p>
-          <button className="btn-primary mt-4" onClick={() => window.location.replace('/')}>
-            Try again
-          </button>
-        </div>
-      </div>
+      <AuthShell eyebrow="Step 2 of 3">
+        <h2 className="gate-title">Payment not confirmed</h2>
+        <p className="form-error">{error}</p>
+        <button className="btn-primary mt-4" onClick={() => window.location.replace('/')}>
+          Try again
+        </button>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="gate-wrap">
-      <div className="gate-card">
-        <h2 className="gate-title">Almost there</h2>
-        <p className="gate-sub">Payment confirmed. Enter your details to generate your notebook.</p>
-        <form onSubmit={handleRegister} className="gate-form">
-          <label htmlFor="reg-name" className="field-label">Full name</label>
-          <input
-            id="reg-name"
-            type="text"
-            required
-            placeholder="e.g. Jane A. Okafor"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="field-input"
-          />
+    <AuthShell eyebrow="Step 2 of 3">
+      <h2 className="gate-title">Almost there</h2>
+      <p className="gate-sub">Payment confirmed. Enter your details to generate your notebook.</p>
+      <form onSubmit={handleRegister} className="gate-form">
+        <label htmlFor="reg-name" className="field-label">Full name</label>
+        <input
+          id="reg-name"
+          type="text"
+          required
+          placeholder="e.g. Jane A. Okafor"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="field-input"
+        />
 
-          <label htmlFor="reg-matric" className="field-label mt-3">Matriculation number</label>
-          <input
-            id="reg-matric"
-            type="text"
-            inputMode="numeric"
-            required
-            maxLength={9}
-            placeholder="e.g. 240403107"
-            value={matric}
-            onChange={(e) => setMatric(e.target.value.replace(/\D/g, '').slice(0, 9))}
-            className="field-input font-mono tracking-widest"
-          />
+        <label htmlFor="reg-matric" className="field-label mt-3">Matriculation number</label>
+        <input
+          id="reg-matric"
+          type="text"
+          inputMode="numeric"
+          required
+          maxLength={9}
+          placeholder="e.g. 240403107"
+          value={matric}
+          onChange={(e) => setMatric(e.target.value.replace(/\D/g, '').slice(0, 9))}
+          className="field-input font-mono tracking-widest"
+        />
 
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
-            {loading ? 'Saving…' : 'Continue →'}
-          </button>
-        </form>
-      </div>
-    </div>
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
+          {loading ? 'Saving…' : 'Continue →'}
+        </button>
+      </form>
+    </AuthShell>
   )
 }
